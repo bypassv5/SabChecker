@@ -1,61 +1,67 @@
--- ✅ CONFIG
-local webhookURL = "https://discord.com/api/webhooks/1398761075041894441/EbR_r1MMQvUQbdz25Hy1GkNYdi0P0Bzkk4Psul8ZQulEBS0X5F2M618Dpak8FP-4NpJy" -- Replace this!
+-- ✅ Config
+local webhookURL = "https://discord.com/api/webhooks/1398761075041894441/EbR_r1MMQvUQbdz25Hy1GkNYdi0P0Bzkk4Psul8ZQulEBS0X5F2M618Dpak8FP-4NpJy"
+
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- ✅ Example check (replace this logic)
-local checkPassed = false
-if game.Workspace:FindFirstChild("MyRareItem") then
-    checkPassed = true
-end
+-- ✅ Send webhook
+local function sendWebhook()
+    local data = {
+        embeds = {{
+            title = "🛰️ Server Hop Triggered",
+            description = "A server hop has been triggered by the script.",
+            color = 0x00FFFF,
+            fields = {
+                { name = "Username", value = LocalPlayer.Name, inline = true },
+                { name = "PlaceId", value = tostring(game.PlaceId), inline = true },
+                { name = "JobId", value = game.JobId, inline = false },
+            },
+            footer = {
+                text = "Time: " .. os.date("%Y-%m-%d %H:%M:%S"),
+            }
+        }}
+    }
 
--- ✅ Send Discord webhook
-local data = {
-    content = nil,
-    embeds = {{
-        title = "Server Hop Report",
-        description = "Check passed: **" .. tostring(checkPassed) .. "**",
-        color = checkPassed and 0x00FF00 or 0xFF0000,
-        fields = {
-            { name = "User", value = LocalPlayer.Name, inline = true },
-            { name = "PlaceId", value = tostring(game.PlaceId), inline = true },
-            { name = "JobId", value = game.JobId, inline = false },
-        },
-        footer = {
-            text = os.date("Time: %Y-%m-%d %H:%M:%S"),
-        }
-    }}
-}
-
-pcall(function()
-    HttpService:PostAsync(
-        webhookURL,
-        HttpService:JSONEncode(data),
-        Enum.HttpContentType.ApplicationJson
-    )
-end)
-
--- ✅ Delay to allow webhook to send
-task.wait(2)
-
--- ✅ Server Hop Logic
-local function hop()
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(
-            "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-        ))
+    pcall(function()
+        HttpService:PostAsync(webhookURL, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
     end)
-
-    if not success or not result.data then return end
-
-    for _, server in ipairs(result.data) do
-        if server.id ~= game.JobId and server.playing < server.maxPlayers then
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-            break
-        end
-    end
 end
 
-hop()
+-- ✅ Server hop logic
+local function serverHop()
+    local cursor = ""
+    local tried = 0
+
+    while tried < 5 do
+        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100" ..
+            (cursor ~= "" and ("&cursor=" .. cursor) or "")
+
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
+
+        if success and result and result.data then
+            for _, server in ipairs(result.data) do
+                if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                    return
+                end
+            end
+            cursor = result.nextPageCursor or ""
+        else
+            warn("Failed to fetch server list")
+        end
+
+        tried += 1
+        task.wait(1)
+    end
+
+    warn("No suitable server found.")
+end
+
+-- ✅ Run everything
+sendWebhook()
+task.wait(2)
+serverHop()
