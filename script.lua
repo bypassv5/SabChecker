@@ -1,4 +1,4 @@
--- Auto reinject on teleport
+-- Auto-reinject on teleport
 local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
 if queue_on_teleport then
     queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
@@ -37,44 +37,6 @@ local pingModels = {
 local running = true
 local teleporting = false
 
-local function sendWebhook(foundModels)
-	local req = (syn and syn.request) or http_request or (fluxus and fluxus.request)
-	if not req then warn("No request function found."); return end
-
-	local pingEveryone = false
-	for _, name in ipairs(foundModels) do
-		if pingModels[name] then
-			pingEveryone = true
-			break
-		end
-	end
-
-	local msg = (pingEveryone and "@everyone\n" or "") ..
-		"✅ Script injected in JobId: `" .. game.JobId .. "`"
-
-	if #foundModels > 0 then
-		msg ..= "\nFound models:\n- " .. table.concat(foundModels, "\n- ")
-	else
-		msg ..= "\nNo models found."
-	end
-
-	msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" ..
-		game.PlaceId .. ', "' .. game.JobId .. '")`'
-
-	local payload = {
-		["content"] = msg
-	}
-
-	pcall(function()
-		req({
-			Url = webhookURL,
-			Method = "POST",
-			Headers = {["Content-Type"] = "application/json"},
-			Body = HttpService:JSONEncode(payload)
-		})
-	end)
-end
-
 local function scanModels()
 	local found = {}
 	for _, name in ipairs(modelsToCheck) do
@@ -87,6 +49,45 @@ local function scanModels()
 		end
 	end
 	return found
+end
+
+local function sendWebhook(foundModels)
+	local req = (syn and syn.request) or http_request or (fluxus and fluxus.request)
+	if not req then warn("No HTTP request function found."); return end
+
+	local pingEveryone = false
+	for _, name in ipairs(foundModels) do
+		if pingModels[name] then
+			pingEveryone = true
+			break
+		end
+	end
+
+	local msg = (pingEveryone and "@everyone\n" or "") ..
+		"✅ Script injected. JobId: `" .. game.JobId .. "`"
+
+	if #foundModels > 0 then
+		msg ..= "\nFound models:\n- " .. table.concat(foundModels, "\n- ")
+	else
+		msg ..= "\nNo models found."
+	end
+
+	msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" ..
+		game.PlaceId .. ', "' .. game.JobId .. '")`'
+
+	pcall(function()
+		req({
+			Url = webhookURL,
+			Method = "POST",
+			Headers = {["Content-Type"] = "application/json"},
+			Body = HttpService:JSONEncode({content = msg})
+		})
+	end)
+
+	if pingEveryone then
+		print("[HALT] Rare model found. Stopping auto-hop.")
+		running = false
+	end
 end
 
 local function getOnePlayerServers()
@@ -121,6 +122,7 @@ local function hopLoop()
 	while running do
 		local found = scanModels()
 		sendWebhook(found)
+		if not running then break end
 		task.wait(0.5)
 
 		local servers = getOnePlayerServers()
@@ -138,13 +140,13 @@ local function hopLoop()
 	end
 end
 
--- Teleport fail fallback
+-- Teleport failure fallback
 TeleportService.TeleportInitFailed:Connect(function()
-	print("[Teleport Fail] Rejoining same server.")
+	print("[Teleport Failed] Rejoining current server...")
 	TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 end)
 
--- Q to toggle hopping
+-- Toggle hopping with Q
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.KeyCode == Enum.KeyCode.Q then
@@ -156,5 +158,5 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- Start on load
+-- Start hopping immediately
 coroutine.wrap(hopLoop)()
