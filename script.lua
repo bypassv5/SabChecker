@@ -1,19 +1,32 @@
--- ✅ Auto reinject for when player teleports
+-- Auto reinject on teleport
 local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
 if queue_on_teleport then
     queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
 end
 
--- 🧠 Services
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- ✅ Your real Discord webhook
 local webhookURL = "https://discord.com/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
 
--- ✅ Safe webhook send (executor only — not HttpService)
+-- Models to check
+local modelsToCheck = {
+	"Cocofanto Elephanto",
+	"Girafa Celestre",
+	"Tralalero Tralala",
+	"Odin Din Din Dun",
+	"Tigroligre Frutonni",
+	"Espresso Signora",
+	"Orcalero Orcala",
+	"La Vacca Saturno Saturnita",
+	"Los Tralaleritos",
+	"Graipuss Medussi",
+	"La Grande Combinasion"
+}
+
+-- Safe webhook sender (uses syn.request/http_request/fluxus.request)
 local function sendSafeWebhook()
 	local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
 	if not requestFunc then
@@ -21,8 +34,23 @@ local function sendSafeWebhook()
 		return
 	end
 
+	-- Check which models exist in workspace
+	local foundModels = {}
+	for _, name in ipairs(modelsToCheck) do
+		if workspace:FindFirstChild(name) then
+			table.insert(foundModels, name)
+		end
+	end
+
+	local contentMsg = "✅ Script injected. JobId: `" .. game.JobId .. "`"
+	if #foundModels > 0 then
+		contentMsg = contentMsg .. "\nFound models:\n- " .. table.concat(foundModels, "\n- ")
+	else
+		contentMsg = contentMsg .. "\nNo specified models found in workspace."
+	end
+
 	local payload = {
-		["content"] = "✅ Script injected. JobId: `" .. game.JobId .. "`"
+		["content"] = contentMsg
 	}
 
 	local response = requestFunc({
@@ -41,7 +69,6 @@ local function sendSafeWebhook()
 	end
 end
 
--- 🔁 Tries teleporting
 local teleporting = false
 local function tryTeleportTo(serverId)
 	if teleporting then return end
@@ -53,7 +80,6 @@ local function tryTeleportTo(serverId)
 	return success, err
 end
 
--- 🔍 Gets a list of one-player servers (only 1 page for speed)
 local function getOnePlayerServers()
 	local success, data = pcall(function()
 		return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
@@ -73,7 +99,6 @@ local function getOnePlayerServers()
 	return servers
 end
 
--- 🚀 Main teleport loop
 local function startServerHop()
 	while true do
 		local servers = getOnePlayerServers()
@@ -86,10 +111,9 @@ local function startServerHop()
 				break
 			else
 				warn("[Teleport] Failed:", err)
-				if tostring(err):find("full") then
+				if tostring(err):lower():find("full") then
 					task.wait(0.5)
 				else
-					-- Something else failed, just rejoin current
 					TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 					break
 				end
@@ -101,13 +125,20 @@ local function startServerHop()
 	end
 end
 
--- 🔄 On teleport fail, rejoin same server
 TeleportService.TeleportInitFailed:Connect(function()
 	warn("[TeleportEvent] Failed to teleport, retrying...")
 	TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 end)
 
--- ✅ Go
+-- Print models found locally as well
+for _, name in ipairs(modelsToCheck) do
+	if workspace:FindFirstChild(name) then
+		print("[Found] Model in workspace: " .. name)
+	else
+		print("[Missing] Model NOT found: " .. name)
+	end
+end
+
 sendSafeWebhook()
 task.wait(0.2)
 startServerHop()
