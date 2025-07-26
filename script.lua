@@ -1,86 +1,113 @@
--- Auto reinject
+-- ✅ Auto reinject for when player teleports
 local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
 if queue_on_teleport then
     queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
 end
 
+-- 🧠 Services
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
-local webhookURL = "https://webhook.lewisakura.moe/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
+-- ✅ Your real Discord webhook
+local webhookURL = "https://discord.com/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
 
-local function sendWebhook()
-    local success, err = pcall(function()
-        HttpService:PostAsync(webhookURL, HttpService:JSONEncode({ content = "JobId: "..game.JobId }), Enum.HttpContentType.ApplicationJson)
-    end)
-    if success then print("[Webhook] OK") else warn("[Webhook] Err:", err) end
+-- ✅ Safe webhook send (executor only — not HttpService)
+local function sendSafeWebhook()
+	local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
+	if not requestFunc then
+		warn("[Webhook] This executor does not support custom HTTP requests.")
+		return
+	end
+
+	local payload = {
+		["content"] = "✅ Script injected. JobId: `" .. game.JobId .. "`"
+	}
+
+	local response = requestFunc({
+		Url = webhookURL,
+		Method = "POST",
+		Headers = {
+			["Content-Type"] = "application/json"
+		},
+		Body = HttpService:JSONEncode(payload)
+	})
+
+	if response and response.StatusCode == 204 then
+		print("[Webhook] Sent successfully.")
+	else
+		warn("[Webhook] Failed to send:", response and response.StatusCode, response and response.Body)
+	end
 end
 
-local teleportInProgress = false
-local function attemptTeleport(serverId)
-    if teleportInProgress then return false end
-    teleportInProgress = true
-    local ok, err = pcall(function()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LocalPlayer)
-    end)
-    teleportInProgress = false
-    return ok, err
+-- 🔁 Tries teleporting
+local teleporting = false
+local function tryTeleportTo(serverId)
+	if teleporting then return end
+	teleporting = true
+	local success, err = pcall(function()
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LocalPlayer)
+	end)
+	teleporting = false
+	return success, err
 end
 
--- Fetch only one page, quickly filter
-local function fetchQuickServers()
-    local ok, res = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(
-            ("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100"):format(game.PlaceId)
-        ))
-    end)
-    if not (ok and res and res.data) then
-        warn("[Fetch] Failed first page")
-        return {}
-    end
+-- 🔍 Gets a list of one-player servers (only 1 page for speed)
+local function getOnePlayerServers()
+	local success, data = pcall(function()
+		return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+	end)
 
-    local list = {}
-    for _, s in ipairs(res.data) do
-        if s.playing == 1 and s.id ~= game.JobId then
-            table.insert(list, s.id)
-        end
-    end
-    return list
+	if not success or not data or not data.data then
+		warn("[Server] Failed to fetch.")
+		return {}
+	end
+
+	local servers = {}
+	for _, server in ipairs(data.data) do
+		if server.playing == 1 and server.id ~= game.JobId then
+			table.insert(servers, server.id)
+		end
+	end
+	return servers
 end
 
--- Main fast hop logic
-local function fastHop()
-    local list = fetchQuickServers()
-    print("[List] Found", #list, "one-player servers")
-    if #list >= 30 then
-        local sid = list[30]
-        print("[Hop] Teleporting to", sid)
-        local ok, err = attemptTeleport(sid)
-        if ok then
-            print("[Hop] Started")
-            return
-        else
-            warn("[Teleport] Err:", err)
-            if tostring(err):find("GameFull") then
-                print("[Retry] Full server, retrying quick")
-                task.wait(0.5)
-                fastHop()
-            else
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-            end
-        end
-    else
-        warn("[Hop] Less than 30 servers, rejoining")
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-    end
+-- 🚀 Main teleport loop
+local function startServerHop()
+	while true do
+		local servers = getOnePlayerServers()
+		if #servers >= 30 then
+			local serverId = servers[30]
+			print("[Hop] Trying to teleport to:", serverId)
+			local ok, err = tryTeleportTo(serverId)
+			if ok then
+				print("[Hop] Teleport initiated.")
+				break
+			else
+				warn("[Teleport] Failed:", err)
+				if tostring(err):find("full") then
+					task.wait(0.5)
+				else
+					-- Something else failed, just rejoin current
+					TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+					break
+				end
+			end
+		else
+			warn("[Hop] Not enough 1-player servers. Retrying in 1s...")
+			task.wait(1)
+		end
+	end
 end
 
+-- 🔄 On teleport fail, rejoin same server
 TeleportService.TeleportInitFailed:Connect(function()
-    warn("[Event] TeleportInitFailed, rejoining")
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+	warn("[TeleportEvent] Failed to teleport, retrying...")
+	TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 end)
 
-sendWebhook()
+-- ✅ Go
+sendSafeWebhook()
 task.wait(0.2)
-fastHop()
+startServerHop()
