@@ -1,4 +1,4 @@
--- Auto reinject URL (keep same)
+-- Auto reinject
 local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
 if queue_on_teleport then
     queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
@@ -6,47 +6,19 @@ end
 
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local webhookURL = "https://webhook.lewisakura.moe/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
 
 local function sendWebhook()
-    local msg = { content = "Script active. JobId: "..game.JobId }
-    local ok, err = pcall(function()
-        HttpService:PostAsync(webhookURL, HttpService:JSONEncode(msg), Enum.HttpContentType.ApplicationJson)
+    local success, err = pcall(function()
+        HttpService:PostAsync(webhookURL, HttpService:JSONEncode({ content = "JobId: "..game.JobId }), Enum.HttpContentType.ApplicationJson)
     end)
-    if ok then print("[Webhook] Sent.") else warn("[Webhook] Failed:", err) end
-end
-
--- Returns table of server IDs with exactly 1 player
-local function fetchOnePlayerServers()
-    local servers, cursor = {}, ""
-    for _ = 1, 10 do
-        local ok, res = pcall(function()
-            return HttpService:JSONDecode(game:HttpGet(
-                "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100".. (cursor ~= "" and "&cursor="..cursor or "")
-            ))
-        end)
-        if not (ok and res and res.data) then
-            warn("[ServerFetch] error")
-            break
-        end
-        for _, s in ipairs(res.data) do
-            if s.playing == 1 and s.id ~= game.JobId then
-                table.insert(servers, s.id)
-            end
-        end
-        if not res.nextPageCursor then break end
-        cursor = res.nextPageCursor
-        task.wait(0.5)
-    end
-    return servers
+    if success then print("[Webhook] OK") else warn("[Webhook] Err:", err) end
 end
 
 local teleportInProgress = false
-
-local function attemptTeleportTo(serverId)
+local function attemptTeleport(serverId)
     if teleportInProgress then return false end
     teleportInProgress = true
     local ok, err = pcall(function()
@@ -56,41 +28,59 @@ local function attemptTeleportTo(serverId)
     return ok, err
 end
 
--- Retry loop
-local function mainHopLoop()
-    while true do
-        local serverList = fetchOnePlayerServers()
-        print("[Servers] found:", #serverList)
-        if #serverList >= 30 then
-            local sid = serverList[30]
-            print("[Attempt] teleport to", sid)
-            local ok, err = attemptTeleportTo(sid)
-            if ok then
-                print("[Teleport] initiated.")
-                return
-            else
-                
-                warn("[Teleport] error:", err)
-                if tostring(err):find("GameFull") then
-                    print("Server full, retrying...")
-                    task.wait(2)
-                else
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-                    return
-                end
-            end
-        else
-            warn("Not enough servers, waiting...")
-            task.wait(3)
+-- Fetch only one page, quickly filter
+local function fetchQuickServers()
+    local ok, res = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(
+            ("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100"):format(game.PlaceId)
+        ))
+    end)
+    if not (ok and res and res.data) then
+        warn("[Fetch] Failed first page")
+        return {}
+    end
+
+    local list = {}
+    for _, s in ipairs(res.data) do
+        if s.playing == 1 and s.id ~= game.JobId then
+            table.insert(list, s.id)
         end
+    end
+    return list
+end
+
+-- Main fast hop logic
+local function fastHop()
+    local list = fetchQuickServers()
+    print("[List] Found", #list, "one-player servers")
+    if #list >= 30 then
+        local sid = list[30]
+        print("[Hop] Teleporting to", sid)
+        local ok, err = attemptTeleport(sid)
+        if ok then
+            print("[Hop] Started")
+            return
+        else
+            warn("[Teleport] Err:", err)
+            if tostring(err):find("GameFull") then
+                print("[Retry] Full server, retrying quick")
+                task.wait(0.5)
+                fastHop()
+            else
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+            end
+        end
+    else
+        warn("[Hop] Less than 30 servers, rejoining")
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
 end
 
 TeleportService.TeleportInitFailed:Connect(function()
-    warn("[TeleportEvent] failed! Rejoining current.")
+    warn("[Event] TeleportInitFailed, rejoining")
     TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 end)
 
 sendWebhook()
-task.wait(1.5)
-mainHopLoop()
+task.wait(0.2)
+fastHop()
