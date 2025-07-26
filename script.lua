@@ -1,4 +1,10 @@
--- ✅ Config
+-- 🔁 Auto-reinject support
+local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
+if queue_on_teleport then
+    queue_on_teleport("loadstring(game:HttpGet('" .. scriptURL .. "'))()")
+end
+
+-- ✅ CONFIG
 local webhookURL = "https://discord.com/api/webhooks/1398761075041894441/EbR_r1MMQvUQbdz25Hy1GkNYdi0P0Bzkk4Psul8ZQulEBS0X5F2M618Dpak8FP-4NpJy"
 
 local HttpService = game:GetService("HttpService")
@@ -6,15 +12,15 @@ local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- ✅ Send Discord webhook
+-- ✅ Send webhook
 local function sendWebhook()
     local data = {
         embeds = {{
-            title = "🛰️ Server Hop Triggered",
-            description = "Hopping to a low-pop server (≤5 players).",
-            color = 0x00FFFF,
+            title = "📡 Ascending Server Hop Started",
+            description = "Looking for a server with **1 player**.",
+            color = 0x00FFAA,
             fields = {
-                { name = "Username", value = LocalPlayer.Name, inline = true },
+                { name = "User", value = LocalPlayer.Name, inline = true },
                 { name = "PlaceId", value = tostring(game.PlaceId), inline = true },
                 { name = "JobId", value = game.JobId, inline = false },
             },
@@ -29,14 +35,16 @@ local function sendWebhook()
     end)
 end
 
--- ✅ Server hop to server with ≤5 players
-local function serverHopToSmall()
+-- ✅ Server hop to ascending, 1-player servers
+local function hopTo1PlayerServer()
     local cursor = ""
-    local tried = 0
+    local maxTries = 10
+    local attempt = 0
 
-    while tried < 10 do
-        local url = ("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100%s"):format(
-            game.PlaceId,
+    while attempt < maxTries do
+        local url = string.format(
+            "https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100%s",
+            tostring(game.PlaceId),
             cursor ~= "" and ("&cursor=" .. cursor) or ""
         )
 
@@ -46,7 +54,7 @@ local function serverHopToSmall()
 
         if success and result and result.data then
             for _, server in ipairs(result.data) do
-                if server.playing <= 5 and server.id ~= game.JobId then
+                if server.playing == 1 and server.id ~= game.JobId then
                     TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
                     return
                 end
@@ -62,14 +70,14 @@ local function serverHopToSmall()
             break
         end
 
-        tried += 1
+        attempt += 1
         task.wait(1)
     end
 
-    warn("No suitable low-population server found.")
+    warn("❌ No server with 1 player found.")
 end
 
--- ✅ Run it
+-- ✅ Execute steps
 sendWebhook()
 task.wait(2)
-serverHopToSmall()
+hopTo1PlayerServer()
