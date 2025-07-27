@@ -173,7 +173,7 @@ local Window = Rayfield:CreateWindow({
         Subtitle = "Key System",
         Note = "Key copied to clipboard. If it isn't, get your key here: https://link-center.net/1375465/YAC3CDe8HuMX",
         FileName = "BrainrotKey", -- Unique filename to avoid conflicts
-        SaveKey = false, -- Change to true if you want to save key locally
+        SaveKey = true, -- Change to true if you want to save key locally
         Key = {"8MWlRfVTijY88Lk43h59ofCnC0iuxhoc"} -- Your accepted key(s)
     }
 })
