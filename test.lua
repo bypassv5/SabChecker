@@ -1,3 +1,7 @@
+pcall(function()
+    setclipboard("https://link-center.net/1375465/YAC3CDe8HuMX")
+end)
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local HttpService = game:GetService("HttpService")
@@ -40,7 +44,7 @@ local selectedDetectModels = {}
 -- Auto-reinject on teleport
 if queue_on_teleport then
 	queue_on_teleport(function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"))()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/test.lua"))()
 	end)
 end
 
@@ -164,15 +168,15 @@ local Window = Rayfield:CreateWindow({
 		FolderName = "BrainrotFinderConfig",
 		FileName = "Config"
 	},
-	KeySystem = true,
-	KeySettings = {
-		Title = "Steal a brainrot finder",
-		Subtitle = "Key System",
-		Note = "Get your key from the website",
-		FileName = "BrainrotKey",
-		SaveKey = false,
-		Key = {"8MWlRfVTijY88Lk43h59ofCnC0iuxhoc"}
-	}
+	KeySystem = true, -- Set this to true to use our key system
+    KeySettings = {
+        Title = "Steal a brainrot finder",
+        Subtitle = "Key System",
+        Note = "Key copied to clipboard. If it isn't, get your key here: https://link-center.net/1375465/YAC3CDe8HuMX",
+        FileName = "BrainrotKey", -- Unique filename to avoid conflicts
+        SaveKey = false, -- Change to true if you want to save key locally
+        Key = {"8MWlRfVTijY88Lk43h59ofCnC0iuxhoc"} -- Your accepted key(s)
+    }
 })
 
 local Tab = Window:CreateTab("Main")
