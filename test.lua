@@ -17,7 +17,7 @@ if setclipboard then
 end
 
 -- // Rayfield UI Load
-loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 -- // Key Verification
 local requiredKey = "8MWlRfVTijY88Lk43h59ofCnC0iuxhoc"
