@@ -42,10 +42,9 @@ local selectedNotifyModels = {}
 local selectedDetectModels = {}
 
 -- Auto-reinject on teleport
+local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/test.lua"
 if queue_on_teleport then
-	queue_on_teleport(function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/test.lua"))()
-	end)
+    queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
 end
 
 -- Utility HTTP Request function (works with Synapse, Fluxus, etc)
@@ -162,7 +161,7 @@ end)
 local Window = Rayfield:CreateWindow({
 	Name = "Brainrot Finder",
 	LoadingTitle = "Loading Brainrot Finder...",
-	LoadingSubtitle = "by You",
+	LoadingSubtitle = "",
 	ConfigurationSaving = {
 		Enabled = true,
 		FolderName = "BrainrotFinderConfig",
@@ -256,4 +255,3 @@ Rayfield:Notify({
 
 -- Start UI
 Rayfield:LoadConfiguration()
-
