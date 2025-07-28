@@ -24,14 +24,23 @@ local modelsToCheck = {
 	"Los Tralaleritos",
 	"Graipuss Medussi",
 	"La Grande Combinasion",
-	"Matteo"
+	"Matteo",
+	"Statutino Libertino",
+	"Chimpanzini Spiderini",
+	"Las Tralaleritas",
+	"Las Vaquitas Saturnitas",
 }
 
 local pingModels = {
 	["La Vacca Saturno Saturnita"] = true,
 	["Graipuss Medussi"] = true,
 	["La Grande Combinasion"] = true,
-	["Los Tralaleritos"] = true
+	["Los Tralaleritos"] = true,
+	["Statutino Libertino"] = true,
+	["Chimpanzini Spiderini"] = true,
+	["Las Tralaleritas"] = true,
+	["Las Vaquitas Saturnitas"] = true,
+	
 }
 
 local running = true
