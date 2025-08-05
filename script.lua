@@ -1,4 +1,4 @@
--- Auto-reinject on teleport
+-- Auto-reinject on teleport 
 local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
 if queue_on_teleport then
     queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
