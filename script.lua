@@ -98,7 +98,7 @@ local function getOnePlayerServers()
 
 	local list = {}
 	for _, server in ipairs(res.data) do
-		if and server.id ~= game.JobId then
+		if server.id ~= game.JobId then
 			table.insert(list, server.id)
 		end
 	end
