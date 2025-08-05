@@ -1,104 +1,151 @@
---// CONFIGURATION
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local webhookOriginal = "https://discord.com/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
+
+local modelsToCheck = {
+    "Cocofanto Elephanto",
+    "Girafa Celestre",
+    "Tralalero Tralala",
+    "Odin Din Din Dun",
+    "Tigroligre Frutonni",
+    "Espresso Signora",
+    "Orcalero Orcala",
+    "La Vacca Saturno Saturnita",
+    "Los Tralaleritos",
+    "Graipuss Medussi",
+    "La Grande Combinasion",
+    "Matteo"
+}
+
 local pingModels = {
     ["La Vacca Saturno Saturnita"] = true,
     ["Graipuss Medussi"] = true,
     ["La Grande Combinasion"] = true,
-    ["Los Tralaleritos"] = true,
-    ["Statutino Libertino"] = true,
-    ["Chimpanzini Spiderini"] = true,
-    ["Las Tralaleritas"] = true,
-    ["Las Vaquitas Saturnitas"] = true,
+    ["Los Tralaleritos"] = true
 }
-local webhookURL = "https://discord.com/api/webhooks/1398765862835458110/yPDUCwGfwrDAkV9y1LwKDbawWTUWLE6810Y2Dh732FnKG1UiIgLnsMrSAJ3-opRkAAHu"
 
---// SERVICES
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local workspace = game:GetService("Workspace")
-local Plots = workspace:WaitForChild("Plots")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local UserInputService = game:GetService("UserInputService")
+-- Rayfield window and key system
+local Window = Rayfield:CreateWindow({
+    Name = "Steal a brainrot finder",
+    LoadingTitle = "Loading UI...",
+    LoadingSubtitle = "by You",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "BrainrotFinder",
+        FileName = "UserConfig"
+    },
+    Discord = {
+        Enabled = false,
+    },
+    KeySystem = true,
+    KeySettings = {
+        Title = "Steal a brainrot finder",
+        Subtitle = "Key System",
+        Note = "Visit your site to get a key",
+        FileName = "Key",
+        SaveKey = false,
+        Key = {"8MWlRfVTijY88Lk43h59ofCnC0iuxhoc"}
+    }
+})
 
---// VARIABLES
-local running, teleporting = true, false
-
---// Get your own plot to ignore
-local myPlotName
-for _, plot in ipairs(Plots:GetChildren()) do
-    local yourBase = plot:FindFirstChild("YourBase", true)
-    if yourBase and yourBase:IsA("BoolValue") and yourBase.Value then
-        myPlotName = plot.Name
-        break
+local webhookInput = Window:CreateInput({
+    Name = "Webhook URL",
+    PlaceholderText = "Enter your custom Discord webhook",
+    RemoveTextAfterFocusLost = false,
+    OnTextChanged = function(value)
+        -- no-op
     end
-end
+})
 
---// Get plot owner from sign
-local function getOwner(plot)
-    local text = plot:FindFirstChild("PlotSign") and 
-        plot.PlotSign:FindFirstChild("SurfaceGui") and 
-        plot.PlotSign.SurfaceGui.Frame.TextLabel.Text or "Unknown"
-    return text:match("^(.-)'s Base") or text
-end
+local notifyDropdown = Window:CreateDropdown({
+    Name = "Notify about models",
+    Options = modelsToCheck,
+    Multiple = true,
+    Flag = "NotifyModels",
+    Callback = function(value)
+        -- no-op
+    end
+})
 
---// Pet scanning
-local function scanPets()
-    local counts = {}
-    for _, plot in ipairs(Plots:GetChildren()) do
-        if plot.Name ~= myPlotName then
-            local owner = getOwner(plot)
-            for _, desc in ipairs(plot:GetDescendants()) do
-                if desc.Name == "DisplayName" and desc:IsA("TextLabel") then
-                    local petName = desc.Text
-                    if pingModels[petName] then
-                        local parent = desc.Parent
-                        local mutationLabel = parent:FindFirstChild("Mutation")
-                        local mutation = (mutationLabel and mutationLabel:IsA("TextLabel")) and mutationLabel.Text or "None"
+local rarePingToggle = Window:CreateToggle({
+    Name = "Use original webhook for @everyone ping",
+    CurrentValue = true,
+    Flag = "RarePing",
+    Callback = function(value)
+        -- no-op
+    end
+})
 
-                        counts[owner] = counts[owner] or {}
-                        local key = petName .. (mutation ~= "None" and (" (" .. mutation .. ")") or "")
-                        counts[owner][key] = (counts[owner][key] or 0) + 1
-                    end
-                end
-            end
+local stopOnFindToggle = Window:CreateToggle({
+    Name = "Stop on finding item",
+    CurrentValue = true,
+    Flag = "StopOnFind",
+    Callback = function(value)
+        -- no-op
+    end
+})
+
+local startToggle = Window:CreateToggle({
+    Name = "Start Script",
+    CurrentValue = true,
+    Flag = "StartScript",
+    Callback = function(value)
+        running = value
+        if value then
+            coroutine.wrap(hopLoop)()
         end
     end
+})
 
-    -- Print results
-    if next(counts) then
-        print("=== Pet Finder Results ===")
-        for owner, pets in pairs(counts) do
-            for name, count in pairs(pets) do
-                print(name .. " x" .. count .. " | Owner: " .. owner)
-            end
-        end
-        print("==========================")
-    else
-        print("No rare pets found.")
-    end
-end
+-- Script logic variables
+local running = true
+local teleporting = false
 
---// Model scanning
-local function scanModels()
+local function scanModels(selectedModels)
     local found = {}
-    for name in pairs(pingModels) do
-        local obj = workspace:FindFirstChild(name)
-        if obj then
-            print("[FOUND MODEL]", name)
+    for _, name in ipairs(selectedModels) do
+        if workspace:FindFirstChild(name) then
+            print("[FOUND]", name)
             table.insert(found, name)
         else
-            print("[MISSING MODEL]", name)
+            print("[MISSING]", name)
         end
     end
     return found
 end
 
---// Send webhook
-local function sendWebhook(foundModels)
+local function sendWebhook(foundModels, useOriginalWebhook)
     local req = (syn and syn.request) or http_request or (fluxus and fluxus.request)
-    if not req then warn("No HTTP request function found."); return end
+    if not req then
+        warn("No HTTP request function found.")
+        return
+    end
 
-    local msg = "@everyone\n✅ Script injected. JobId: `" .. game.JobId .. "`"
+    local pingEveryone = false
+    for _, name in ipairs(foundModels) do
+        if pingModels[name] then
+            pingEveryone = true
+            break
+        end
+    end
+
+    local webhookURL = webhookInput.Value
+    if pingEveryone and useOriginalWebhook then
+        webhookURL = webhookOriginal
+    end
+    if webhookURL == "" then
+        warn("Webhook URL empty, aborting webhook send")
+        return
+    end
+
+    local msg = (pingEveryone and "@everyone\n" or "") ..
+        "✅ Script injected. JobId: `" .. game.JobId .. "`"
 
     if #foundModels > 0 then
         msg ..= "\nFound models:\n- " .. table.concat(foundModels, "\n- ")
@@ -106,7 +153,8 @@ local function sendWebhook(foundModels)
         msg ..= "\nNo models found."
     end
 
-    msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. game.PlaceId .. ', "' .. game.JobId .. '")`'
+    msg ..= "\n\nJoin: `game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" ..
+        game.PlaceId .. ', "' .. game.JobId .. '")`'
 
     pcall(function()
         req({
@@ -117,13 +165,12 @@ local function sendWebhook(foundModels)
         })
     end)
 
-    if #foundModels > 0 then
+    if pingEveryone then
         print("[HALT] Rare model found. Stopping auto-hop.")
         running = false
     end
 end
 
---// Server hopping
 local function getOnePlayerServers()
     local ok, res = pcall(function()
         return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
@@ -132,7 +179,7 @@ local function getOnePlayerServers()
 
     local list = {}
     for _, server in ipairs(res.data) do
-        if server.id ~= game.JobId then
+        if server.playing == 1 and server.id ~= game.JobId then
             table.insert(list, server.id)
         end
     end
@@ -146,25 +193,36 @@ local function tryTeleport(serverId)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LocalPlayer)
     end)
     teleporting = false
-    if not success then warn("[Teleport Error]", err) end
+    if not success then
+        warn("[Teleport Error]", err)
+    end
     return success
 end
 
---// Combined loop
 local function hopLoop()
     while running do
-        scanPets()
-        task.wait(5) -- Wait after pet scan before scanning models
+        local selectedModels = notifyDropdown:Get()
+        if #selectedModels == 0 then
+            warn("No models selected in dropdown.")
+            task.wait(1)
+            continue
+        end
+        local found = scanModels(selectedModels)
+        sendWebhook(found, rarePingToggle.CurrentValue)
 
-        local found = scanModels()
-        sendWebhook(found)
+        -- If stop on finding item toggle is ON and any models are found, stop running
+        if stopOnFindToggle.CurrentValue and #found > 0 then
+            print("[STOP] Found item and stopping as per toggle.")
+            running = false
+            break
+        end
 
         if not running then break end
-        task.wait(1)
+        task.wait(0.5)
 
         local servers = getOnePlayerServers()
-        if #servers >= 1 then
-            local serverId = servers[math.random(1, #servers)]
+        if #servers >= 30 then
+            local serverId = servers[30]
             if tryTeleport(serverId) then
                 print("[HOP] Teleporting to", serverId)
                 break
@@ -177,27 +235,22 @@ local function hopLoop()
     end
 end
 
---// Teleport failure fallback
 TeleportService.TeleportInitFailed:Connect(function()
     print("[Teleport Failed] Rejoining current server...")
     TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
 end)
 
---// Manual toggle with Q
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Q then
         running = not running
         print(running and "[RESUMED]" or "[PAUSED]")
-        if running then coroutine.wrap(hopLoop)() end
+        startToggle:Set(running)
+        if running then
+            coroutine.wrap(hopLoop)()
+        end
     end
 end)
 
---// Start hopping
+-- Start automatically on launch
 coroutine.wrap(hopLoop)()
-
---// Re-inject on teleport
-local scriptURL = "https://raw.githubusercontent.com/bypassv5/SabChecker/refs/heads/main/script.lua"
-if queue_on_teleport then
-    queue_on_teleport("loadstring(game:HttpGet('"..scriptURL.."'))()")
-end
