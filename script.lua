@@ -20,7 +20,7 @@ local modelsToCheck = {
 	"Tigroligre Frutonni",
 	"Espresso Signora",
 	"Orcalero Orcala",
-	-- "La Vacca Saturno Saturnita",
+        "La Vacca Saturno Saturnita",
 	"Los Tralaleritos",
 	"Graipuss Medussi",
 	"La Grande Combinasion",
